@@ -1,4 +1,4 @@
-BIDMach
-=======
+Forked from [jcanny/BIDMach](https://github.com/jcanny/BIDMach)
 
-CPU and GPU-accelerated Machine Learning Library
+updates:
+ - Support for CUDA5.5
