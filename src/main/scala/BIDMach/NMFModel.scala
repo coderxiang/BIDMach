@@ -5,7 +5,7 @@ import BIDMat.MatFunctions._
 import BIDMat.SciFunctions._
 
 
-class NMFModel(opts:NMFModel.Options = new NMFModel.Options) extends FactorModel(opts) { 
+class NMFModel(opts:NMFModel.Opts = new NMFModel.Options) extends FactorModel(opts) { 
   
   var mm:Mat = null
   var mdiag:Mat = null
@@ -89,27 +89,50 @@ class NMFModel(opts:NMFModel.Options = new NMFModel.Options) extends FactorModel
 }
 
 object NMFModel  {
-  class Options extends FactorModel.Options {
+  trait Opts extends FactorModel.Opts {
     var NMFeps = 1e-12
     var uprior = 0.01f
     var mprior = 1e-4f
     var nusers = 100000
   }
   
-  def mkNMFmodel(fopts:Model.Options) = {
-  	new NMFModel(fopts.asInstanceOf[NMFModel.Options])
+  class Options extends Opts {}
+  
+  def mkNMFmodel(fopts:Model.Opts) = {
+  	new NMFModel(fopts.asInstanceOf[NMFModel.Opts])
   } 
    
-  def mkUpdater(nopts:Updater.Options) = {
-  	new IncNormUpdater(nopts.asInstanceOf[IncNormUpdater.Options])
+  def mkUpdater(nopts:Updater.Opts) = {
+  	new IncNormUpdater(nopts.asInstanceOf[IncNormUpdater.Opts])
   }
-      
-  def learn(mat0:Mat) = {	
-  	new Learner(new MatDataSource(Array(mat0:Mat)), new NMFModel(), null, new IncNormUpdater(), new Learner.Options)
+        
+  def learn(mat0:Mat, d:Int = 256) = {
+    class xopts extends Learner.Options with NMFModel.Opts with MatDataSource.Opts with IncNormUpdater.Opts
+    val opts = new xopts
+    opts.dim = d
+    opts.putBack = 1
+    opts.blockSize = math.min(100000, mat0.ncols/30 + 1)
+  	val nn = new Learner(
+  	    new MatDataSource(Array(mat0:Mat), opts), 
+  			new NMFModel(opts), 
+  			null, 
+  			new IncNormUpdater(opts), opts)
+    (nn, opts)
   }
   
-  def learnBatch(mat0:Mat) = {	
-  	new Learner(new MatDataSource(Array(mat0:Mat)), new NMFModel(), null, new BatchNormUpdater(), new Learner.Options)
+  def learnBatch(mat0:Mat, d:Int = 256) = {
+    class xopts extends Learner.Options with NMFModel.Opts with MatDataSource.Opts with BatchNormUpdater.Opts
+    val opts = new xopts
+    opts.dim = d
+    opts.putBack = 1
+    opts.blockSize = math.min(100000, mat0.ncols/30 + 1)
+    val nn = new Learner(
+        new MatDataSource(Array(mat0:Mat), opts), 
+        new NMFModel(), 
+        null, 
+        new BatchNormUpdater(opts), 
+        opts)
+    (nn, opts)
   }
   
   def learnFPar(
