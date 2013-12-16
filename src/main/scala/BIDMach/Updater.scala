@@ -12,8 +12,8 @@ abstract class Updater(val opts:Updater.Opts = new Updater.Options) {
     model = model0 
   }
   
-  def update(step:Long):Unit
-  def updateM():Unit = {}
+  def update(ipass:Int, step:Long):Unit
+  def updateM(ipass:Int):Unit = {}
   def clear():Unit = {}
 }
 
@@ -33,7 +33,7 @@ class IncNormUpdater(override val opts:IncNormUpdater.Opts = new IncNormUpdater.
     firstStep = 0f
   }
       
-  def update(step:Long) = {
+  def update(ipass:Int, step:Long) = {
   	val modelmats = model.modelmats
   	val updatemats = model.updatemats
   	val mm = modelmats(0)
@@ -95,7 +95,7 @@ class BatchNormUpdater(override val opts:BatchNormUpdater.Opts = new BatchNormUp
     }
   }
      
-  def update(step:Long) = {
+  def update(ipass:Int, step:Long) = {
   	val updatemats = model.updatemats
     for (i <- 0 until accumulators.length) {
     	accumulators(i) ~ accumulators(i) + updatemats(i) 
@@ -108,7 +108,7 @@ class BatchNormUpdater(override val opts:BatchNormUpdater.Opts = new BatchNormUp
 	  }
   }
   
-  override def updateM():Unit = {
+  override def updateM(ipass:Int):Unit = {
     val mm = model.modelmats(0)
     mm ~ accumulators(0) / accumulators(1)
     mm ~ mm / sum(mm,2)
@@ -127,7 +127,7 @@ class IncMultUpdater(override val opts:IncMultUpdater.Opts = new IncMultUpdater.
     rm = model0.modelmats(0).zeros(1,1)
   }
       
-  def update(step:Long) = {
+  def update(ipass:Int, step:Long) = {
     val modelmats = model.modelmats
     val updatemats = model.updatemats
     val mm = modelmats(0)
@@ -182,7 +182,7 @@ class TelescopingUpdater(override val opts:TelescopingUpdater.Opts = new Telesco
     nextCount = 0L
   }
 	
-	def update(step:Long) = {
+	def update(ipass:Int, step:Long) = {
 	  if (firstStep == 0 && step > 0) {
 	    firstStep = step
 	  }
@@ -229,7 +229,7 @@ class GradUpdater(override val opts:GradUpdater.Opts = new GradUpdater.Options) 
     alpha <-- opts.alpha
   } 
   
-	def update(step:Long):Unit = {
+	def update(ipass:Int, step:Long):Unit = {
 	  val nsteps = if (step == 0) 1f else {
   	  if (firstStep == 0f) {
   	    firstStep = step
@@ -279,7 +279,7 @@ class ADAGradUpdater(override val opts:ADAGradUpdater.Opts = new ADAGradUpdater.
     alpha <-- opts.alpha
   } 
   
-	def update2(step:Long):Unit = {
+	def update2(ipass:Int, step:Long):Unit = {
 	  val nsteps = if (step == 0) 1f else {
   	  if (firstStep == 0f) {
   	    firstStep = step
@@ -303,7 +303,7 @@ class ADAGradUpdater(override val opts:ADAGradUpdater.Opts = new ADAGradUpdater.
 	  }
 	}
 	
-	def update(step:Long):Unit = {
+	def update(ipass:Int, step:Long):Unit = {
 	  val nsteps = if (step == 0) 1f else {
   	  if (firstStep == 0f) {
   	    firstStep = step
@@ -328,6 +328,52 @@ class ADAGradUpdater(override val opts:ADAGradUpdater.Opts = new ADAGradUpdater.
 	  	if (mask != null) modelmat ~ modelmat *@ mask
 	  }
 	}
+}
+
+
+class CGUpdater(override val opts:CGUpdater.Opts = new CGUpdater.Options) extends Updater(opts) {
+	var bm:Mat = null
+	var Ax:Mat = null
+	var Ap:Mat = null
+	var pm:Mat = null
+	var rm:Mat = null
+	var mm:Mat = null
+	
+	override def init(model0:Model) = {
+  	super.init(model0)
+  	mm = model0.modelmats(0)
+	  bm = mm.zeros(mm.nrows, mm.ncols)
+	  Ax = mm.zeros(mm.nrows, mm.ncols)
+	  Ap = mm.zeros(mm.nrows, mm.ncols)
+	  pm = mm.zeros(mm.nrows, mm.ncols)
+	  rm = mm.zeros(mm.nrows, mm.ncols)
+	  model.asInstanceOf[CGUpdateable].setpm(pm)
+  }
+	
+	def update(ipass:Int, step:Long) = {
+	  val updatemats = model.updatemats
+	  if (ipass == 0) {
+	    bm ~ bm + updatemats(0)
+	    Ax ~ Ax + updatemats(1)
+	  }
+	  Ap ~ Ap + updatemats(2)
+	}
+	
+	override def updateM(ipass:Int) = {  
+	  if (ipass == 0) {
+	  	rm ~ bm - Ax
+	  	pm <-- rm
+	  }
+	  CGUpdater.CGupdate(pm, rm, Ap, mm, opts.meps)
+	  Ap.clear
+  }
+	
+	override def clear = {  
+  }
+}
+
+trait CGUpdateable {
+  def setpm(pm:Mat)
 }
 
 
@@ -393,6 +439,25 @@ object ADAGradUpdater {
   }
   
   class Options extends Opts {}
+}
+
+object CGUpdater {
+  trait Opts extends Updater.Opts {
+  	var meps = 1e-12f
+  }  
+  class Options extends Opts {}
+  
+  def CGupdate(p:Mat, r:Mat, Ap:Mat, x:Mat, weps:Float) = {
+  	val pAp = (p dot Ap)
+  	max(weps, pAp, pAp)
+  	val rsold = (r dot r) + 0   // Otherwise this will alias
+  	val alpha = rsold / pAp
+  	x ~ x + p *@ alpha
+  	r ~ r - (Ap *@ alpha)
+  	val rsnew = (r dot r)       // ...down here
+  	max(weps, rsold, rsold)
+  	p ~ r + (p *@ (rsnew/rsold))
+  }  
 }
 
 object Updater {
