@@ -1,0 +1,15 @@
+run-main PAMmodel ("1000", "20", "5")
+run-main PAMmodel "1000" "20" "5"
+compille
+compile
+run-main PAMmodel "1000" "20" "5"
+run-main BIDMach.PAMmodel "1000" "20" "5"
+compile
+run-main PAMmodel "1000" "20" "5"
+run-main BIDMach.PAMmodel "1000" "20" "5"
+compile
+run-main BIDMach.PAMmodel "1000" "20" "5"
+compile
+package
+compile
+package

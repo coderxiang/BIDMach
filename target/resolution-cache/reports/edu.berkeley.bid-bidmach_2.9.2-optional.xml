@@ -6,8 +6,8 @@
 		module="bidmach_2.9.2"
 		revision="0.1.0"
 		conf="optional"
-		confs="compile, runtime, test, provided, optional, compile-internal, runtime-internal, test-internal, plugin, sources, docs, pom, scala-tool"
-		date="20131114144437"/>
+		confs="compile, runtime, test, provided, optional, compile-internal, runtime-internal, test-internal, plugin, sources, docs, pom"
+		date="20131215210226"/>
 	<dependencies>
 	</dependencies>
 </ivy-report>
