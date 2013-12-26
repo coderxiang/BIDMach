@@ -1,8 +1,9 @@
-package BIDMach
+package BIDMach.models
 
 import BIDMat.{Mat,BMat,CMat,DMat,FMat,IMat,HMat,GMat,GIMat,GSMat,SMat,SDMat}
 import BIDMat.MatFunctions._
 import BIDMat.SciFunctions._
+import BIDMach.datasources._
 
 abstract class FactorModel(override val opts:FactorModel.Opts) extends Model(opts) {
   
@@ -33,34 +34,26 @@ abstract class FactorModel(override val opts:FactorModel.Opts) extends Model(opt
     }
   } 
   
-  def reuseuser(a:Mat):Mat = {
-    val out = a match {
-      case aa:SMat => FMat.newOrCheckFMat(opts.dim, a.ncols, null, a.GUID, "reuseuser".##)
-      case aa:GSMat => GMat.newOrCheckGMat(opts.dim, a.ncols, null, a.GUID, "reuseuser".##)
-    }
-    out.set(1f)
-    out
-  }
   
-  def uupdate(data:Mat, user:Mat)
+  def uupdate(data:Mat, user:Mat, ipass:Int)
   
-  def mupdate(data:Mat, user:Mat)
+  def mupdate(data:Mat, user:Mat, ipass:Int)
   
-  def mupdate2(data:Mat, user:Mat) = {}
+  def mupdate2(data:Mat, user:Mat, ipass:Int) = {}
   
   def evalfun(data:Mat, user:Mat):FMat
   
   def doblock(gmats:Array[Mat], ipass:Int, i:Long) = {
     val sdata = gmats(0)
-    val user = if (gmats.length > 1) gmats(1) else reuseuser(gmats(0))
-    uupdate(sdata, user)
-    mupdate(sdata, user)
+    val user = if (gmats.length > 1) gmats(1) else FactorModel.reuseuser(gmats(0), opts.dim, 1f)
+    uupdate(sdata, user, ipass)
+    mupdate(sdata, user, ipass)
   }
   
   def evalblock(mats:Array[Mat], ipass:Int):FMat = {
     val sdata = gmats(0)
-    val user = if (gmats.length > 1) gmats(1) else reuseuser(gmats(0))
-    uupdate(sdata, user)
+    val user = if (gmats.length > 1) gmats(1) else FactorModel.reuseuser(gmats(0), opts.dim, 1f)
+    uupdate(sdata, user, ipass)
     evalfun(sdata, user)
   } 
 }
@@ -70,6 +63,15 @@ object FactorModel {
     var uiter = 8
     var weps = 1e-10f
     var minuser = 1e-8f
+  }
+  
+  def reuseuser(a:Mat, dim:Int, ival:Float):Mat = {
+    val out = a match {
+      case aa:SMat => FMat.newOrCheckFMat(dim, a.ncols, null, a.GUID, "reuseuser".##)
+      case aa:GSMat => GMat.newOrCheckGMat(dim, a.ncols, null, a.GUID, "reuseuser".##)
+    }
+    out.set(ival)
+    out
   }
   
   class Options extends Opts {}
